@@ -1,0 +1,395 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const PhotoFinderApp());
+}
+
+class PhotoFinderApp extends StatelessWidget {
+  const PhotoFinderApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF3454F5),
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF4F5F8),
+      ),
+      home: const ScanPage(),
+    );
+  }
+}
+
+class PhotoGroup {
+  final String name;
+  final String count;
+  final String space;
+  final String type;
+
+  const PhotoGroup(
+      this.name, this.count, this.space, this.type);
+}
+
+const groups = [
+  PhotoGroup('IMG_2041.jpg', '3 photos', '9.6 MB', 'Exact match'),
+  PhotoGroup('Screenshot_0612', '2 photos', '1.1 MB', 'Exact match'),
+  PhotoGroup('IMG_1877.jpg', '4 photos', '12.4 MB', 'Similar'),
+];
+
+class ScanPage extends StatefulWidget {
+  const ScanPage({super.key});
+
+  @override
+  State<ScanPage> createState() => _ScanPageState();
+}
+
+class _ScanPageState extends State<ScanPage> {
+  double progress = 0;
+  bool scanning = false;
+
+  Timer? scanTimer;
+
+  String resultFilter = 'All';
+
+  final selectedGroups = <int>{0, 1};
+
+  @override
+  void dispose() {
+    scanTimer?.cancel();
+    super.dispose();
+  }
+
+  void startScan() {
+    scanTimer?.cancel();
+
+    setState(() {
+      progress = 0;
+      scanning = true;
+    });
+
+    scanTimer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+
+        setState(() {
+          progress += 0.025;
+
+          if (progress >= 1) {
+            progress = 1;
+            scanning = false;
+            timer.cancel();
+
+            scanTimer = null;
+          }
+        });
+      },
+    );
+  }
+
+  void cancelScan() {
+    scanTimer?.cancel();
+
+    setState(() {
+      progress = 0;
+      scanning = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(scanning ? 'Scanning' : 'Photo Finder'),
+        backgroundColor: const Color(0xFFF4F5F8),
+      ),
+      body: SafeArea(
+        child: scanning || progress == 0
+            ? scanningPage()
+            : resultsPage(),
+      ),
+    );
+  }
+
+  // PAGE 5: SCANNING
+
+  Widget scanningPage() {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text(
+            'Scanning your photos',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          SizedBox(
+            width: 150,
+            height: 150,
+            child: CircularProgressIndicator(
+              value: progress,
+              strokeWidth: 14,
+              backgroundColor: const Color(0xFFCDD5FF),
+              color: const Color(0xFF3454F5),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          Text(
+            '${(progress * 100).round()}% complete',
+            style: const TextStyle(fontSize: 20),
+          ),
+
+          const SizedBox(height: 8),
+
+          const Text('Comparing sample photos...'),
+
+          const SizedBox(height: 28),
+
+          const Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
+                  ),
+                  title: Text('Reading files'),
+                ),
+                ListTile(
+                  leading: Icon(Icons.sync),
+                  title: Text('Comparing photo groups'),
+                ),
+                ListTile(
+                  leading: Icon(Icons.search),
+                  title: Text('Finding similar photos'),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 25),
+
+          if (!scanning)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: startScan,
+                child: const Text('Start scan'),
+              ),
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: cancelScan,
+                child: const Text('Cancel scan'),
+              ),
+            ),
+
+          const SizedBox(height: 12),
+
+          const Text(
+            'Demo scan only. Nothing is uploaded.',
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // PAGE 6: RESULTS
+
+  Widget resultsPage() {
+    final visibleGroups = groups.where((group) {
+      return resultFilter == 'All' ||
+          group.type.startsWith(resultFilter);
+    }).toList();
+
+    return Column(
+      children: [
+        Card(
+          color: const Color(0xFF3454F5),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: DefaultTextStyle(
+              style: const TextStyle(color: Colors.white),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '486 MB\ncan be freed',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '37 groups\n112 duplicates\n4,357 scanned',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: Text(
+            '${selectedGroups.length} groups selected',
+          ),
+        ),
+
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final filter in ['All', 'Exact', 'Similar'])
+              FilterChip(
+                label: Text(filter),
+                selected: resultFilter == filter,
+                onSelected: (_) {
+                  setState(() {
+                    resultFilter = filter;
+                  });
+                },
+              ),
+          ],
+        ),
+
+        Expanded(
+          child: ListView.builder(
+            itemCount: visibleGroups.length,
+            itemBuilder: (context, index) {
+              final group = visibleGroups[index];
+              final groupIndex = groups.indexOf(group);
+
+              return Card(
+                child: CheckboxListTile(
+                  value: selectedGroups.contains(groupIndex),
+                  title: Text(
+                    group.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${group.type} | ${group.count}',
+                  ),
+                  secondary: const Icon(
+                    Icons.photo,
+                    size: 38,
+                    color: Color(0xFF3454F5),
+                  ),
+                  onChanged: (checked) {
+                    setState(() {
+                      if (checked == true) {
+                        selectedGroups.add(groupIndex);
+                      } else {
+                        selectedGroups.remove(groupIndex);
+                      }
+                    });
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Review is a demo preview.'),
+                      ),
+                    );
+                  },
+                  child: const Text('Review a group'),
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              Expanded(
+                child: FilledButton(
+                  onPressed: selectedGroups.isEmpty
+                      ? null
+                      : confirmCleanup,
+                  child: const Text('Delete selected'),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        TextButton(
+          onPressed: () {
+            setState(() {
+              progress = 0;
+              resultFilter = 'All';
+              selectedGroups
+                ..clear()
+                ..addAll([0, 1]);
+            });
+          },
+          child: const Text('Scan again'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> confirmCleanup() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Finish demo cleanup?'),
+          content: const Text(
+            'This only shows a confirmation. '
+            'No files will actually be deleted.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text('Go back'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: const Text('Continue'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Demo cleanup completed!'),
+        ),
+      );
+    }
+  }
+}
